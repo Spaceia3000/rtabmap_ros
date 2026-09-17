@@ -4587,7 +4587,15 @@ void CoreWrapper::addLinkCallback(const std::shared_ptr<rmw_request_id_t>,
 	if(rtabmap_.getMemory())
 	{
 		RCLCPP_INFO(get_logger(), "Adding external link %d -> %d", req->link.from_id, req->link.to_id);
-		rtabmap_.addLink(rtabmap_conversions::linkFromROS(req->link));
+		if(rtabmap_.addLink(rtabmap_conversions::linkFromROS(req->link)))
+		{
+			std::lock_guard<std::mutex> lock(mapToOdomMutex_);
+			mapToOdom_ = rtabmap_.getMapCorrection();
+		}
+		else
+		{
+			RCLCPP_ERROR(get_logger(), "Failed adding external link %d -> %d", req->link.from_id, req->link.to_id);
+		}
 	}
 }
 
