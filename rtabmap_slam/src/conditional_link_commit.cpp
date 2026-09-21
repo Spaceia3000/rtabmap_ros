@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <rtabmap_conversions/MsgConversion.h>
+
 namespace rtabmap_slam::conditional_commit
 {
 namespace
@@ -44,6 +46,15 @@ bool sameUnorderedPair(
 }
 
 }  // namespace
+
+rtabmap_msgs::msg::Link canonicalizeLinkPayload(
+  const rtabmap_msgs::msg::Link & value)
+{
+  rtabmap_msgs::msg::Link canonical;
+  rtabmap_conversions::linkToROS(
+    rtabmap_conversions::linkFromROS(value), canonical);
+  return canonical;
+}
 
 bool sameLinkPayload(
   const rtabmap_msgs::msg::Link & lhs,

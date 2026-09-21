@@ -6,6 +6,9 @@
 namespace rtabmap_slam::conditional_commit
 {
 
+[[nodiscard]] rtabmap_msgs::msg::Link canonicalizeLinkPayload(
+  const rtabmap_msgs::msg::Link & value);
+
 [[nodiscard]] bool sameLinkPayload(
   const rtabmap_msgs::msg::Link & lhs,
   const rtabmap_msgs::msg::Link & rhs) noexcept;
