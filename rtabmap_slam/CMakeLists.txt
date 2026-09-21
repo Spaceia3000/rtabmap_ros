@@ -100,6 +100,7 @@ ENDIF()
 
 SET(rtabmap_slam_plugins_lib_src
    src/CoreWrapper.cpp
+   src/conditional_link_commit.cpp
 )
 
 # If apriltag_msgs is found, add definition
@@ -237,7 +238,15 @@ install(TARGETS
 
 install(DIRECTORY include/
    DESTINATION include
-   FILES_MATCHING PATTERN "*.h"
+   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
+
+if(BUILD_TESTING)
+   find_package(ament_cmake_gtest REQUIRED)
+   ament_add_gtest(test_conditional_link_commit
+      test/test_conditional_link_commit.cpp)
+   target_link_libraries(test_conditional_link_commit
+      rtabmap_slam_plugins)
+endif()
 
 ament_package()

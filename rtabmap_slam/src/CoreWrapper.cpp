@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "rtabmap_slam/CoreWrapper.h"
+#include "rtabmap_slam/conditional_link_commit.hpp"
 
 #include <stdio.h>
 #include <thread>
@@ -690,6 +691,7 @@ CoreWrapper::CoreWrapper(const rclcpp::NodeOptions & options) :
 	listLabelsSrv_ = this->create_service<rtabmap_msgs::srv::ListLabels>(servicePrefix + "list_labels", std::bind(&CoreWrapper::listLabelsCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), rclcpp::ServicesQoS(), processingCallbackGroup_);
 	removeLabelSrv_ = this->create_service<rtabmap_msgs::srv::RemoveLabel>(servicePrefix + "remove_label", std::bind(&CoreWrapper::removeLabelCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), rclcpp::ServicesQoS(), processingCallbackGroup_);
 	addLinkSrv_ = this->create_service<rtabmap_msgs::srv::AddLink>(servicePrefix + "add_link", std::bind(&CoreWrapper::addLinkCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), rclcpp::ServicesQoS(), processingCallbackGroup_);
+	conditionalAddLinkSrv_ = this->create_service<rtabmap_msgs::srv::ConditionalAddLink>(servicePrefix + "conditional_add_link", std::bind(&CoreWrapper::conditionalAddLinkCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), rclcpp::ServicesQoS(), processingCallbackGroup_);
 	getNodesInRadiusSrv_ = this->create_service<rtabmap_msgs::srv::GetNodesInRadius>(servicePrefix + "get_nodes_in_radius", std::bind(&CoreWrapper::getNodesInRadiusCallback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3), rclcpp::ServicesQoS(), processingCallbackGroup_);
 
 #ifdef WITH_OCTOMAP_MSGS
@@ -4597,6 +4599,122 @@ void CoreWrapper::addLinkCallback(const std::shared_ptr<rmw_request_id_t>,
 			RCLCPP_ERROR(get_logger(), "Failed adding external link %d -> %d", req->link.from_id, req->link.to_id);
 		}
 	}
+}
+
+void CoreWrapper::conditionalAddLinkCallback(
+		const std::shared_ptr<rmw_request_id_t>,
+		const std::shared_ptr<rtabmap_msgs::srv::ConditionalAddLink::Request> req,
+		std::shared_ptr<rtabmap_msgs::srv::ConditionalAddLink::Response> res)
+{
+	auto snapshot = [this]() {
+		rtabmap_msgs::msg::MapGraph graph;
+		std::map<int, rtabmap::Transform> poses;
+		std::multimap<int, rtabmap::Link> constraints;
+		rtabmap_.getGraph(
+			poses,
+			constraints,
+			false,  // optimized: match HA-MSLAM preflight
+			true);  // global map
+
+		rtabmap::Transform map_to_odom;
+		{
+			std::lock_guard<std::mutex> lock(mapToOdomMutex_);
+			map_to_odom = mapToOdom_.clone();
+		}
+		rtabmap_conversions::mapGraphToROS(
+			poses, constraints, map_to_odom, graph);
+		return graph;
+	};
+
+	res->rtabmap_accepted = false;
+	if(!rtabmap_.getMemory())
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_INTERNAL_ERROR;
+		res->message = "RTAB memory is not initialized";
+		return;
+	}
+
+	const auto before = snapshot();
+	if(!conditional_commit::sameMapGraphPayload(req->expected_graph, before))
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_STALE_GRAPH;
+		res->graph_after = before;
+		res->message = "live graph differs from expected preflight graph";
+		return;
+	}
+
+	if(conditional_commit::hasAnyLinkBetween(
+			before, req->link.from_id, req->link.to_id))
+	{
+		if(conditional_commit::hasExactLink(before, req->link))
+		{
+			res->state =
+				rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_ALREADY_PRESENT;
+			res->rtabmap_accepted = true;
+			res->graph_after = before;
+			res->message = "exact link already present";
+		}
+		else
+		{
+			res->state =
+				rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_CONFLICT;
+			res->graph_after = before;
+			res->message = "different link already exists for node pair";
+		}
+		return;
+	}
+
+	bool accepted = false;
+	try
+	{
+		accepted = rtabmap_.addLink(
+			rtabmap_conversions::linkFromROS(req->link));
+	}
+	catch(const std::exception & exception)
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_INTERNAL_ERROR;
+		res->message = exception.what();
+		return;
+	}
+	catch(...)
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_INTERNAL_ERROR;
+		res->message = "unknown exception while adding link";
+		return;
+	}
+
+	if(!accepted)
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_RTAB_REJECTED;
+		res->message = "Rtabmap::addLink rejected the candidate";
+		res->graph_after = snapshot();
+		return;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(mapToOdomMutex_);
+		mapToOdom_ = rtabmap_.getMapCorrection();
+	}
+	res->rtabmap_accepted = true;
+
+	const auto after = snapshot();
+	res->graph_after = after;
+	if(!conditional_commit::hasExactLink(after, req->link))
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_POSTFLIGHT_MISMATCH;
+		res->message = "RTAB accepted link but exact payload is absent postflight";
+		return;
+	}
+
+	res->state =
+		rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_COMMITTED;
+	res->message = "link committed and acknowledged";
 }
 
 void CoreWrapper::getNodesInRadiusCallback(
