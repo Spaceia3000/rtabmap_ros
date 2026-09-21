@@ -92,9 +92,11 @@ TEST(ConditionalLinkCommit, RtabRoundTripProducesStableExactPayload)
   original.information[11] = 0.375;
   original.information[30] = 0.375;
 
+  const auto canonical = rc::canonicalizeLinkPayload(original);
   rtabmap_msgs::msg::Link first;
   rtabmap_conversions::linkToROS(
     rtabmap_conversions::linkFromROS(original), first);
+  EXPECT_TRUE(rc::sameLinkPayload(canonical, first));
 
   rtabmap_msgs::msg::Link second;
   rtabmap_conversions::linkToROS(

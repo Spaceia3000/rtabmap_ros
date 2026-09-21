@@ -4627,6 +4627,28 @@ void CoreWrapper::conditionalAddLinkCallback(
 	};
 
 	res->rtabmap_accepted = false;
+	rtabmap_msgs::msg::Link canonical_link;
+	try
+	{
+		canonical_link =
+			conditional_commit::canonicalizeLinkPayload(req->link);
+	}
+	catch(const std::exception & exception)
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_INTERNAL_ERROR;
+		res->message =
+			std::string("invalid link payload: ") + exception.what();
+		return;
+	}
+	catch(...)
+	{
+		res->state =
+			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_INTERNAL_ERROR;
+		res->message = "invalid link payload";
+		return;
+	}
+
 	if(!rtabmap_.getMemory())
 	{
 		res->state =
@@ -4646,9 +4668,9 @@ void CoreWrapper::conditionalAddLinkCallback(
 	}
 
 	if(conditional_commit::hasAnyLinkBetween(
-			before, req->link.from_id, req->link.to_id))
+			before, canonical_link.from_id, canonical_link.to_id))
 	{
-		if(conditional_commit::hasExactLink(before, req->link))
+		if(conditional_commit::hasExactLink(before, canonical_link))
 		{
 			res->state =
 				rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_ALREADY_PRESENT;
@@ -4670,7 +4692,7 @@ void CoreWrapper::conditionalAddLinkCallback(
 	try
 	{
 		accepted = rtabmap_.addLink(
-			rtabmap_conversions::linkFromROS(req->link));
+			rtabmap_conversions::linkFromROS(canonical_link));
 	}
 	catch(const std::exception & exception)
 	{
@@ -4704,7 +4726,7 @@ void CoreWrapper::conditionalAddLinkCallback(
 
 	const auto after = snapshot();
 	res->graph_after = after;
-	if(!conditional_commit::hasExactLink(after, req->link))
+	if(!conditional_commit::hasExactLink(after, canonical_link))
 	{
 		res->state =
 			rtabmap_msgs::srv::ConditionalAddLink::Response::STATE_POSTFLIGHT_MISMATCH;
