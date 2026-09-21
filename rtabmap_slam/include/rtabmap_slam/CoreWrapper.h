@@ -76,6 +76,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rtabmap_msgs/srv/global_bundle_adjustment.hpp"
 #include "rtabmap_msgs/srv/cleanup_local_grids.hpp"
 #include "rtabmap_msgs/srv/add_link.hpp"
+#include "rtabmap_msgs/srv/conditional_add_link.hpp"
 
 #include "rtabmap_util/MapsManager.h"
 
@@ -278,6 +279,7 @@ private:
 	void listLabelsCallback(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::ListLabels::Request>, std::shared_ptr<rtabmap_msgs::srv::ListLabels::Response> res);
 	void removeLabelCallback(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::RemoveLabel::Request>, std::shared_ptr<rtabmap_msgs::srv::RemoveLabel::Response> res);
 	void addLinkCallback(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::AddLink::Request>, std::shared_ptr<rtabmap_msgs::srv::AddLink::Response> res);
+	void conditionalAddLinkCallback(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::ConditionalAddLink::Request>, std::shared_ptr<rtabmap_msgs::srv::ConditionalAddLink::Response> res);
 	void getNodesInRadiusCallback(const std::shared_ptr<rmw_request_id_t>, const std::shared_ptr<rtabmap_msgs::srv::GetNodesInRadius::Request>, std::shared_ptr<rtabmap_msgs::srv::GetNodesInRadius::Response> res);
 
 #ifdef WITH_OCTOMAP_MSGS
@@ -418,6 +420,7 @@ private:
 	rclcpp::Service<rtabmap_msgs::srv::ListLabels>::SharedPtr listLabelsSrv_;
 	rclcpp::Service<rtabmap_msgs::srv::RemoveLabel>::SharedPtr removeLabelSrv_;
 	rclcpp::Service<rtabmap_msgs::srv::AddLink>::SharedPtr addLinkSrv_;
+	rclcpp::Service<rtabmap_msgs::srv::ConditionalAddLink>::SharedPtr conditionalAddLinkSrv_;
 	rclcpp::Service<rtabmap_msgs::srv::GetNodesInRadius>::SharedPtr getNodesInRadiusSrv_;
 #ifdef WITH_OCTOMAP_MSGS
 	rclcpp::Service<octomap_msgs::srv::GetOctomap>::SharedPtr octomapBinarySrv_;
