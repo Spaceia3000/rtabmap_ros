@@ -1,0 +1,17 @@
+# Atomically compare the live RTAB graph against the caller's exact
+# preflight graph, then attempt to add one link in the same mutually-exclusive
+# CoreWrapper callback.
+Link link
+MapGraph expected_graph
+---
+uint8 STATE_COMMITTED=0
+uint8 STATE_ALREADY_PRESENT=1
+uint8 STATE_CONFLICT=2
+uint8 STATE_STALE_GRAPH=3
+uint8 STATE_RTAB_REJECTED=4
+uint8 STATE_POSTFLIGHT_MISMATCH=5
+uint8 STATE_INTERNAL_ERROR=6
+uint8 state
+bool rtabmap_accepted
+MapGraph graph_after
+string message

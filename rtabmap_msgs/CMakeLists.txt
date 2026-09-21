@@ -73,6 +73,7 @@ set(srv_files
    "srv/RemoveLabel.srv"
    "srv/GetPlan.srv"
    "srv/AddLink.srv"
+   "srv/ConditionalAddLink.srv"
    "srv/GetNodeData.srv"
    "srv/GetNodesInRadius.srv"
    "srv/LoadDatabase.srv"
